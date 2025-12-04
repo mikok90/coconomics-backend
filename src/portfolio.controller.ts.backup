@@ -1,0 +1,186 @@
+import { Controller, Get, Post, Body, Param, UseGuards, Query, Delete, Request } from '@nestjs/common';
+import { PortfolioService } from './portfolio.service';
+import { StockPriceService } from './stock-price.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { User } from './user.decorator';
+
+@Controller('portfolio')
+@UseGuards(JwtAuthGuard)
+export class PortfolioController {
+  constructor(
+    private readonly portfolioService: PortfolioService,
+    private readonly stockPriceService: StockPriceService
+  ) {}
+
+  @Get('me')
+  async getPortfolio(@User() user: any) {
+    return this.portfolioService.getPortfolioByUser(user.id);
+  }
+
+  @Get(':id/positions')
+  async getPositions(@Param('id') id: number) {
+    return this.portfolioService.getPositions(id);
+  }
+
+  @Get(':id/live-prices')
+  async getLivePrices(@Param('id') id: number) {
+    return this.portfolioService.updateLivePrices(id);
+  }
+
+  @Get('stock/:symbol/quote')
+  async getStockQuote(@Param('symbol') symbol: string) {
+    return this.stockPriceService.getQuote(symbol);
+  }
+
+  @Get('stock/:symbol/chart')
+  async getStockChart(
+    @Param('symbol') symbol: string,
+    @Query('range') range: string = '1d'
+  ) {
+    return this.stockPriceService.getChartData(symbol, range);
+  }
+
+  @Get('stock/:symbol/recommendation')
+  async getRecommendation(@Param('symbol') symbol: string) {
+    return this.stockPriceService.getRecommendation(symbol);
+  }
+
+  @Get('stock/:symbol/rule-of-40')
+  async getRuleOf40(@Param('symbol') symbol: string) {
+    const data = await this.stockPriceService.calculateRuleOf40(symbol);
+
+    // Transform to match frontend interface
+    const classification = data.classification || 'N/A';
+    // Convert EXCELLENT -> Excellent, GOOD -> Good, etc.
+    const rating = classification.charAt(0).toUpperCase() + classification.slice(1).toLowerCase();
+
+    return {
+      revenueGrowth: data.revenue_growth_percent || 0,
+      profitMargin: data.profit_margin_percent || 0,
+      ruleOf40Score: data.rule_of_40_score || 0,
+      rating: rating,
+      description: this.getRuleOf40Description(data)
+    };
+  }
+
+  private getRuleOf40Description(data: any): string {
+    const score = data.rule_of_40_score || 0;
+    if (score >= 40) {
+      return `Excellent performance with ${score.toFixed(1)}% score. Revenue growth and profitability are well balanced.`;
+    } else if (score >= 25) {
+      return `Good performance with ${score.toFixed(1)}% score. Company is on a solid growth trajectory.`;
+    } else if (score >= 10) {
+      return `Fair performance with ${score.toFixed(1)}% score. Room for improvement in growth or profitability.`;
+    } else {
+      return `Poor performance with ${score.toFixed(1)}% score. Company needs significant improvement.`;
+    }
+  }
+
+  @Post(':id/optimize')
+  async optimizePortfolio(
+    @Param('id') id: number,
+    @Body() body: { riskFreeRate?: number }
+  ) {
+    return this.portfolioService.optimizePortfolio(id, body.riskFreeRate);
+  }
+
+  @Post(':id/rebalance')
+  async calculateRebalancing(@Param('id') id: number) {
+    return this.portfolioService.calculateRebalancing(id);
+  }
+
+  @Post(':id/execute-rebalance')
+  async executeRebalancing(
+    @Param('id') id: number,
+    @Body() body: { actions: any[] }
+  ) {
+    return this.portfolioService.executeRebalancing(id, body.actions);
+  }
+
+  @Get(':id/history')
+  async getRebalanceHistory(@Param('id') id: number) {
+    return this.portfolioService.getRebalanceHistory(id);
+  }
+
+  @Get('position/:id/rebalancing')
+  async getRebalancingRecommendations(@Param('id') id: number) {
+    const position = await this.portfolioService.getPosition(id);
+    
+    const valueAveraging = this.stockPriceService.calculateValueAveraging(
+      parseFloat(position.quantity.toString()),
+      parseFloat(position.avgBuyPrice.toString()),
+      parseFloat(position.currentPrice.toString()),
+      1 // months since start
+    );
+    
+    const thresholdRebalancing = this.stockPriceService.calculateThresholdRebalancing(
+      parseFloat(position.quantity.toString()),
+      parseFloat(position.avgBuyPrice.toString()),
+      parseFloat(position.currentPrice.toString())
+    );
+    
+    return {
+      valueAveraging,
+      thresholdRebalancing
+    };
+  }
+
+  @Post(':id/add-position')
+  async addPosition(
+    @Param('id') id: number,
+    @Body() body: {
+      symbol: string;
+      quantity: number;
+      avgBuyPrice: number;
+    }
+  ) {
+    return this.portfolioService.addPosition(id, body);
+  }
+
+  @Delete('position/:id')
+  async deletePosition(@Param('id') id: number) {
+    return this.portfolioService.deletePosition(id);
+  }
+
+  @Post('position/:id/sell')
+  async sellShares(
+    @Param('id') id: number,
+    @Body() body: { quantity: number }
+  ) {
+    return this.portfolioService.sellShares(id, body.quantity);
+  }
+
+  @Post(':id/update-prices')
+  async updatePrices(@Param('id') id: number) {
+    return this.portfolioService.updateCurrentPrices(id);
+  }
+
+  @Post(':id/deposit')
+  async depositCash(
+    @Param('id') id: number,
+    @Body() body: { amount: number; notes?: string }
+  ) {
+    return this.portfolioService.depositCash(id, body.amount, body.notes);
+  }
+
+  @Post(':id/withdraw')
+  async withdrawCash(
+    @Param('id') id: number,
+    @Body() body: { amount: number; notes?: string }
+  ) {
+    return this.portfolioService.withdrawCash(id, body.amount, body.notes);
+  }
+
+  @Get(':id/transactions')
+  async getTransactions(
+    @Param('id') id: number,
+    @Query('limit') limit?: number
+  ) {
+    return this.portfolioService.getTransactions(id, limit);
+  }
+
+  @Delete(':id/transactions')
+  async deleteAllTransactions(@Param('id') id: number) {
+    return this.portfolioService.deleteAllTransactions(id);
+  }
+}
