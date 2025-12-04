@@ -327,26 +327,30 @@ export class StockPriceService {
     }
     // Buy thresholds - when stock is below your average cost (on sale!)
     else if (priceChange <= -20) {
-      // -20% loss → Buy €200 worth to average down significantly
-      const buyAmount = 200;
+      // -20% loss → Buy 30% more shares (proportional to position size)
+      const currentPositionValue = quantity * currentPrice;
+      const buyPercentage = 0.30;
+      const buyAmount = currentPositionValue * buyPercentage;
       const sharesToBuy = buyAmount / currentPrice;
       return {
         action: 'BUY',
-        percentage: '€200',
+        percentage: '30%',
         amount: `€${buyAmount.toFixed(2)}`,
         shares: parseFloat(sharesToBuy.toFixed(2)),
-        reason: `${absChange.toFixed(1)}% ${profitLoss} vs avg cost €${avgBuyPrice.toFixed(2)} - strong discount, lower cost basis`
+        reason: `${absChange.toFixed(1)}% ${profitLoss} vs avg cost €${avgBuyPrice.toFixed(2)} - strong discount, add 30% to position`
       };
     } else if (priceChange <= -10) {
-      // -10% loss → Buy €100 worth to average down
-      const buyAmount = 100;
+      // -10% loss → Buy 15% more shares (proportional to position size)
+      const currentPositionValue = quantity * currentPrice;
+      const buyPercentage = 0.15;
+      const buyAmount = currentPositionValue * buyPercentage;
       const sharesToBuy = buyAmount / currentPrice;
       return {
         action: 'BUY',
-        percentage: '€100',
+        percentage: '15%',
         amount: `€${buyAmount.toFixed(2)}`,
         shares: parseFloat(sharesToBuy.toFixed(2)),
-        reason: `${absChange.toFixed(1)}% ${profitLoss} vs avg cost €${avgBuyPrice.toFixed(2)} - discount opportunity`
+        reason: `${absChange.toFixed(1)}% ${profitLoss} vs avg cost €${avgBuyPrice.toFixed(2)} - discount, add 15% to position`
       };
     } else {
       return {
