@@ -114,6 +114,12 @@ export class Position {
   @Column({ type: 'decimal', precision: 5, scale: 4, name: 'target_weight', nullable: true })
   targetWeight: number;
 
+  @Column({ type: 'decimal', precision: 15, scale: 2, name: 'last_rebalance_price', nullable: true })
+  lastRebalancePrice: number;
+
+  @Column({ type: 'varchar', length: 10, name: 'last_rebalance_action', nullable: true })
+  lastRebalanceAction: string;
+
   @Column({ name: 'last_updated', type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   lastUpdated: Date;
 

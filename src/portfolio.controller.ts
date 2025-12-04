@@ -129,7 +129,9 @@ export class PortfolioController {
     const thresholdRebalancing = this.stockPriceService.calculateThresholdRebalancing(
       parseFloat(position.quantity.toString()),
       parseFloat(position.avgBuyPrice.toString()),
-      parseFloat(position.currentPrice.toString())
+      parseFloat(position.currentPrice.toString()),
+      position.lastRebalancePrice ? parseFloat(position.lastRebalancePrice.toString()) : undefined,
+      position.lastRebalanceAction || undefined
     );
 
     return {

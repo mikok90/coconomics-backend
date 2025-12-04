@@ -237,7 +237,7 @@ export class StockPriceService {
     avgBuyPrice: number,
     currentPrice: number,
     monthsSinceStart: number = 1,
-    targetMonthlyGrowth: number = 0.01 // 1% monthly growth target
+    targetMonthlyGrowth: number = 0.015 // 1.5% monthly growth target
   ): {
     action: 'BUY' | 'SELL' | 'HOLD';
     amount: string;
@@ -281,24 +281,33 @@ export class StockPriceService {
 
   /**
    * Threshold Rebalancing Algorithm
-   * Buy/sell based on % deviation from average price
+   * Buy/sell based on % deviation from reference price
+   * Remembers last action to create buy-low-sell-high cycles
    */
   calculateThresholdRebalancing(
     quantity: number,
     avgBuyPrice: number,
-    currentPrice: number
+    currentPrice: number,
+    lastRebalancePrice?: number,
+    lastRebalanceAction?: string
   ): {
     action: 'BUY' | 'SELL' | 'HOLD';
     percentage: string;
     amount: string;
     shares: number;
     reason: string;
+    newRebalancePrice?: number;  // Price to save for next rebalance
   } {
-    const priceChange = ((currentPrice - avgBuyPrice) / avgBuyPrice) * 100;
-    const currentValue = quantity * currentPrice;
-    
+    // Use last rebalance price if available, otherwise use average buy price
+    const referencePrice = lastRebalancePrice || avgBuyPrice;
+    const priceChange = ((currentPrice - referencePrice) / referencePrice) * 100;
+
+    // If last action was SELL, only look for BUY signals (price dropped)
+    // If last action was BUY, only look for SELL signals (price rose)
+    // If no last action, check both directions
+
     // Thresholds
-    if (priceChange >= 20) {
+    if (priceChange >= 20 && lastRebalanceAction !== 'BUY') {
       // +20% → Sell 40% of holdings
       const sharesToSell = quantity * 0.4;
       return {
@@ -306,9 +315,10 @@ export class StockPriceService {
         percentage: '40%',
         amount: `€${(sharesToSell * currentPrice).toFixed(2)}`,
         shares: parseFloat(sharesToSell.toFixed(2)),
-        reason: `Price up ${priceChange.toFixed(1)}% from avg - take profits`
+        reason: `Price up ${priceChange.toFixed(1)}% from €${referencePrice.toFixed(2)} - take profits`,
+        newRebalancePrice: currentPrice
       };
-    } else if (priceChange >= 10) {
+    } else if (priceChange >= 10 && lastRebalanceAction !== 'BUY') {
       // +10% → Sell 20% of holdings
       const sharesToSell = quantity * 0.2;
       return {
@@ -316,9 +326,10 @@ export class StockPriceService {
         percentage: '20%',
         amount: `€${(sharesToSell * currentPrice).toFixed(2)}`,
         shares: parseFloat(sharesToSell.toFixed(2)),
-        reason: `Price up ${priceChange.toFixed(1)}% from avg - lock gains`
+        reason: `Price up ${priceChange.toFixed(1)}% from €${referencePrice.toFixed(2)} - lock gains`,
+        newRebalancePrice: currentPrice
       };
-    } else if (priceChange <= -20) {
+    } else if (priceChange <= -20 && lastRebalanceAction !== 'SELL') {
       // -20% → Buy €200 worth
       const buyAmount = 200;
       const sharesToBuy = buyAmount / currentPrice;
@@ -327,9 +338,10 @@ export class StockPriceService {
         percentage: '€200',
         amount: `€${buyAmount.toFixed(2)}`,
         shares: parseFloat(sharesToBuy.toFixed(2)),
-        reason: `Price down ${Math.abs(priceChange).toFixed(1)}% - strong buy opportunity`
+        reason: `Price down ${Math.abs(priceChange).toFixed(1)}% from €${referencePrice.toFixed(2)} - strong buy opportunity`,
+        newRebalancePrice: currentPrice
       };
-    } else if (priceChange <= -10) {
+    } else if (priceChange <= -10 && lastRebalanceAction !== 'SELL') {
       // -10% → Buy €100 worth
       const buyAmount = 100;
       const sharesToBuy = buyAmount / currentPrice;
@@ -338,7 +350,8 @@ export class StockPriceService {
         percentage: '€100',
         amount: `€${buyAmount.toFixed(2)}`,
         shares: parseFloat(sharesToBuy.toFixed(2)),
-        reason: `Price down ${Math.abs(priceChange).toFixed(1)}% - average down`
+        reason: `Price down ${Math.abs(priceChange).toFixed(1)}% from €${referencePrice.toFixed(2)} - average down`,
+        newRebalancePrice: currentPrice
       };
     } else {
       return {
@@ -346,7 +359,7 @@ export class StockPriceService {
         percentage: '0%',
         amount: '€0',
         shares: 0,
-        reason: `Price within normal range (${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}%)`
+        reason: `Price within normal range (${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}% from €${referencePrice.toFixed(2)})`
       };
     }
   }
