@@ -302,13 +302,12 @@ export class StockPriceService {
     const referencePrice = lastRebalancePrice || avgBuyPrice;
     const priceChange = ((currentPrice - referencePrice) / referencePrice) * 100;
 
-    // If last action was SELL, only look for BUY signals (price dropped)
-    // If last action was BUY, only look for SELL signals (price rose)
-    // If no last action, check both directions
+    // Always check both directions - suggest buy/sell based on 10% threshold from last action
+    // This allows: averaging down when falling, taking profits incrementally when rising
 
-    // Thresholds - Swing trading: alternate between buy and sell
-    if (priceChange >= 20 && lastRebalanceAction !== 'SELL') {
-      // +20% → Sell 40% of holdings (only if you just BOUGHT or first time)
+    // Thresholds - Always active in both directions
+    if (priceChange >= 20) {
+      // +20% → Sell 40% of holdings
       const sharesToSell = quantity * 0.4;
       return {
         action: 'SELL',
@@ -318,8 +317,8 @@ export class StockPriceService {
         reason: `Price up ${priceChange.toFixed(1)}% from €${referencePrice.toFixed(2)} - take profits`,
         newRebalancePrice: currentPrice
       };
-    } else if (priceChange >= 10 && lastRebalanceAction !== 'SELL') {
-      // +10% → Sell 20% of holdings (only if you just BOUGHT or first time)
+    } else if (priceChange >= 10) {
+      // +10% → Sell 20% of holdings
       const sharesToSell = quantity * 0.2;
       return {
         action: 'SELL',
@@ -329,8 +328,8 @@ export class StockPriceService {
         reason: `Price up ${priceChange.toFixed(1)}% from €${referencePrice.toFixed(2)} - lock gains`,
         newRebalancePrice: currentPrice
       };
-    } else if (priceChange <= -20 && lastRebalanceAction !== 'BUY') {
-      // -20% → Buy €200 worth (only if you just SOLD or first time)
+    } else if (priceChange <= -20) {
+      // -20% → Buy €200 worth
       const buyAmount = 200;
       const sharesToBuy = buyAmount / currentPrice;
       return {
@@ -341,8 +340,8 @@ export class StockPriceService {
         reason: `Price down ${Math.abs(priceChange).toFixed(1)}% from €${referencePrice.toFixed(2)} - strong buy opportunity`,
         newRebalancePrice: currentPrice
       };
-    } else if (priceChange <= -10 && lastRebalanceAction !== 'BUY') {
-      // -10% → Buy €100 worth (only if you just SOLD or first time)
+    } else if (priceChange <= -10) {
+      // -10% → Buy €100 worth
       const buyAmount = 100;
       const sharesToBuy = buyAmount / currentPrice;
       return {
