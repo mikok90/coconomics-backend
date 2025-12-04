@@ -143,10 +143,6 @@ export class PortfolioService {
       position.avgBuyPrice = totalCostCalc / totalQuantity;
       position.currentPrice = currentPrice; // Update with live price
       position.lastUpdated = new Date();
-
-      // Update rebalance tracking for threshold algorithm
-      position.lastRebalancePrice = currentPrice;
-      position.lastRebalanceAction = 'BUY';
     } else {
       // Create new position with live price
       position = this.positionRepo.create({
@@ -155,10 +151,7 @@ export class PortfolioService {
         quantity: data.quantity,
         avgBuyPrice: data.avgBuyPrice,
         currentPrice: currentPrice, // Use live price
-        lastUpdated: new Date(),
-        // Initialize rebalance tracking
-        lastRebalancePrice: currentPrice,
-        lastRebalanceAction: 'BUY'
+        lastUpdated: new Date()
       });
     }
 
@@ -263,10 +256,6 @@ export class PortfolioService {
     // Otherwise, just reduce the quantity
     position.quantity = remainingQuantity;
     position.lastUpdated = new Date();
-
-    // Update rebalance tracking for threshold algorithm
-    position.lastRebalancePrice = currentPrice;
-    position.lastRebalanceAction = 'SELL';
 
     await this.positionRepo.save(position);
     await this.updatePortfolioWeights(portfolioId);

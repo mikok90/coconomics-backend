@@ -281,8 +281,8 @@ export class StockPriceService {
 
   /**
    * Threshold Rebalancing Algorithm
-   * Buy/sell based on % deviation from reference price
-   * Remembers last action to create buy-low-sell-high cycles
+   * Buy/sell based on % deviation from average cost basis
+   * Classic value investing approach: sell when profitable, buy when discounted
    */
   calculateThresholdRebalancing(
     quantity: number,
@@ -296,40 +296,38 @@ export class StockPriceService {
     amount: string;
     shares: number;
     reason: string;
-    newRebalancePrice?: number;  // Price to save for next rebalance
+    newRebalancePrice?: number;
   } {
-    // Use last rebalance price if available, otherwise use average buy price
-    const referencePrice = lastRebalancePrice || avgBuyPrice;
-    const priceChange = ((currentPrice - referencePrice) / referencePrice) * 100;
+    // Always use average buy price as reference - this is your cost basis
+    const priceChange = ((currentPrice - avgBuyPrice) / avgBuyPrice) * 100;
+    const profitLoss = priceChange > 0 ? 'profit' : 'loss';
+    const absChange = Math.abs(priceChange);
 
-    // Always check both directions - suggest buy/sell based on 10% threshold from last action
-    // This allows: averaging down when falling, taking profits incrementally when rising
-
-    // Thresholds - Always active in both directions
+    // Sell thresholds - only when you're actually profitable
     if (priceChange >= 20) {
-      // +20% → Sell 40% of holdings
+      // +20% profit → Sell 40% to lock in major gains
       const sharesToSell = quantity * 0.4;
       return {
         action: 'SELL',
         percentage: '40%',
         amount: `€${(sharesToSell * currentPrice).toFixed(2)}`,
         shares: parseFloat(sharesToSell.toFixed(2)),
-        reason: `Price up ${priceChange.toFixed(1)}% from €${referencePrice.toFixed(2)} - take profits`,
-        newRebalancePrice: currentPrice
+        reason: `${absChange.toFixed(1)}% ${profitLoss} vs avg cost €${avgBuyPrice.toFixed(2)} - take substantial profits`
       };
     } else if (priceChange >= 10) {
-      // +10% → Sell 20% of holdings
+      // +10% profit → Sell 20% to lock in gains
       const sharesToSell = quantity * 0.2;
       return {
         action: 'SELL',
         percentage: '20%',
         amount: `€${(sharesToSell * currentPrice).toFixed(2)}`,
         shares: parseFloat(sharesToSell.toFixed(2)),
-        reason: `Price up ${priceChange.toFixed(1)}% from €${referencePrice.toFixed(2)} - lock gains`,
-        newRebalancePrice: currentPrice
+        reason: `${absChange.toFixed(1)}% ${profitLoss} vs avg cost €${avgBuyPrice.toFixed(2)} - lock in profits`
       };
-    } else if (priceChange <= -20) {
-      // -20% → Buy €200 worth
+    }
+    // Buy thresholds - when stock is below your average cost (on sale!)
+    else if (priceChange <= -20) {
+      // -20% loss → Buy €200 worth to average down significantly
       const buyAmount = 200;
       const sharesToBuy = buyAmount / currentPrice;
       return {
@@ -337,11 +335,10 @@ export class StockPriceService {
         percentage: '€200',
         amount: `€${buyAmount.toFixed(2)}`,
         shares: parseFloat(sharesToBuy.toFixed(2)),
-        reason: `Price down ${Math.abs(priceChange).toFixed(1)}% from €${referencePrice.toFixed(2)} - strong buy opportunity`,
-        newRebalancePrice: currentPrice
+        reason: `${absChange.toFixed(1)}% ${profitLoss} vs avg cost €${avgBuyPrice.toFixed(2)} - strong discount, lower cost basis`
       };
     } else if (priceChange <= -10) {
-      // -10% → Buy €100 worth
+      // -10% loss → Buy €100 worth to average down
       const buyAmount = 100;
       const sharesToBuy = buyAmount / currentPrice;
       return {
@@ -349,8 +346,7 @@ export class StockPriceService {
         percentage: '€100',
         amount: `€${buyAmount.toFixed(2)}`,
         shares: parseFloat(sharesToBuy.toFixed(2)),
-        reason: `Price down ${Math.abs(priceChange).toFixed(1)}% from €${referencePrice.toFixed(2)} - average down`,
-        newRebalancePrice: currentPrice
+        reason: `${absChange.toFixed(1)}% ${profitLoss} vs avg cost €${avgBuyPrice.toFixed(2)} - discount opportunity`
       };
     } else {
       return {
@@ -358,7 +354,7 @@ export class StockPriceService {
         percentage: '0%',
         amount: '€0',
         shares: 0,
-        reason: `Price within normal range (${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}% from €${referencePrice.toFixed(2)})`
+        reason: `${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}% vs avg cost €${avgBuyPrice.toFixed(2)} - within threshold`
       };
     }
   }
